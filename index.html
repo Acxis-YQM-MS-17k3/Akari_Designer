@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akari Designer v1.2.0_WEB — Design Mode (by Acxis_Official)</title>
+<meta name="description" content="Akari (Light Up) puzzle designer: design, test, verify uniqueness, evaluate difficulty and dig for hard — all in the browser.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="favicon.ico">
+</head>
+<body>
+<header id="toolbar">
+  <!-- Row 1: Settings & Size & Add/Del Rows/Cols & Flip & Design Approach -->
+  <div class="tb-row">
+    <button id="btnSettings" class="tb-btn">⚙ Settings</button>
+    <span class="tb-sep"></span>
+    <label class="tb-lbl" for="inpRows">Rows:</label>
+    <input id="inpRows" class="tb-num" type="number" min="2" max="50" value="10">
+    <label class="tb-lbl" for="inpCols">Columns:</label>
+    <input id="inpCols" class="tb-num" type="number" min="2" max="50" value="10">
+    <button id="btnRebuild" class="tb-btn lockable">(Re-)Build the Board</button>
+    <span class="menu-anchor"><button id="btnAddDel" class="tb-btn lockable">Add/Del Rows/Cols ▾</button></span>
+    <span class="menu-anchor"><button id="btnFlip" class="tb-btn lockable">Flip the Board ▾</button></span>
+    <span class="tb-sep"></span>
+    <span class="tb-lbl">Design Approach:</span>
+    <label class="tb-chk"><input type="radio" name="paradigm" value="lights" id="paraLights" checked>Lights First</label>
+    <label class="tb-chk"><input type="radio" name="paradigm" value="walls" id="paraWalls">Clues First</label>
+  </div>
+  <!-- Row 2: Symmetry (fixed) + edit tools (rebuilt with the approach) -->
+  <div class="tb-row">
+    <span class="tb-lbl">Symmetry:</span>
+    <label class="tb-chk lockable"><input type="checkbox" id="symH">Horiz.</label>
+    <label class="tb-chk lockable"><input type="checkbox" id="symV">Verti.</label>
+    <label class="tb-chk lockable"><input type="checkbox" id="symC">Centr.</label>
+    <label class="tb-chk lockable"><input type="checkbox" id="symD">Diag.</label>
+    <label class="tb-chk lockable"><input type="checkbox" id="symA">Anti-D.</label>
+    <span class="tb-sep"></span>
+    <span id="editRow" class="tb-row-inner"></span>
+  </div>
+  <!-- Row 3: Determination & Digging -->
+  <div class="tb-row">
+    <button id="btnSolvable" class="tb-btn">① Solvab. Determ.</button>
+    <button id="btnUnique" class="tb-btn">② Unique. Determ.</button>
+    <button id="btnDifficulty" class="tb-btn">③ Diffic. Evalua.</button>
+    <button id="btnDig" class="tb-btn lockable">④ Dig for Hard!</button>
+    <button id="btnUndo" class="tb-btn lockable">↩ Undo (Ctrl+Z)</button>
+    <button id="btnUndoDig" class="tb-btn lockable">↩ Undo Digging</button>
+    <button id="btnClearLights" class="tb-btn lockable">Clear All Lights</button>
+    <button id="btnBackup" class="tb-btn">Open Backup Config. Window</button>
+  </div>
+  <!-- Row 4: File I/O & Akari Bank -->
+  <div class="tb-row">
+    <button id="btnOpen" class="tb-btn lockable">📂 Open...</button>
+    <button id="btnImportImg" class="tb-btn lockable">🖼 Import Akari Graph...</button>
+    <button id="btnSave" class="tb-btn">💾 Save...</button>
+    <span class="menu-anchor"><button id="btnExportImg" class="tb-btn">🖼 Output Akari Graph...</button></span>
+    <button id="btnQuickSave" class="tb-btn">⚡ Save into Akari Bank</button>
+    <button id="btnLibrary" class="tb-btn">📚 Akari Bank</button>
+  </div>
+  <!-- Row 5: Puzzle Name & Enter Test Mode -->
+  <div class="tb-row">
+    <label class="tb-lbl" for="inpName">Puzzle Name:</label>
+    <input id="inpName" class="tb-name" type="text" maxlength="60">
+    <button id="btnTestMode" class="tb-btn">▶ Test Mode</button>
+  </div>
+</header>
+
+<main id="boardArea"></main>
+
+<footer id="statusBar" class="status-bar">
+  <div id="statusText" class="status-text"></div>
+  <div id="zoomHost"></div>
+</footer>
+
+<input type="file" id="fileOpen" accept=".akari" hidden>
+<input type="file" id="fileImport" accept=".png,.bmp,image/png,image/bmp" hidden>
+
+<script src="js/core.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/imageio.js"></script>
+<script src="js/windows.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
