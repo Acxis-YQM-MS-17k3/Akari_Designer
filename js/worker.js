@@ -26,7 +26,7 @@ self.onmessage = function (e) {
             const p = revivePuzzle(e.data.puzzle);
             const res = dig_for_hardest(p, {
                 mode: e.data.mode, enum_limit: e.data.enum_limit,
-                logic_only: e.data.logic_only,
+                logic_only: e.data.logic_only, keep: e.data.keep || null,
                 on_progress: (t) => self.postMessage({ id, kind: "progress", text: t }),
             });
             self.postMessage({ id, kind: "done", result: res });

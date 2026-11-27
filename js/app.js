@@ -81,7 +81,6 @@ class AkariDesignerApp {
         $("paraLights").addEventListener("change", () => this._switch_paradigm("lights"));
         $("paraWalls").addEventListener("change", () => this._switch_paradigm("walls"));
         $("btnSolvable").addEventListener("click", () => this.check_solvable());
-        $("btnUnique").addEventListener("click", () => this.check_unique());
         $("btnDifficulty").addEventListener("click", () => this.check_difficulty());
         $("btnDig").addEventListener("click", () => this.open_dig());
         $("btnUndo").addEventListener("click", () => this.undo());
@@ -157,9 +156,19 @@ class AkariDesignerApp {
             if (btn.disabled) return;
             const pop = document.createElement("div");
             pop.className = "menu-pop";
-            const closeAll = () => { pop.remove(); document.removeEventListener("click", onDoc); };
             const onDoc = (ev) => { if (!pop.contains(ev.target)) closeAll(); };
-            setTimeout(() => document.addEventListener("click", onDoc), 0);
+            const onMove = () => closeAll();      // scrolling/resizing detaches a fixed menu from its button
+            const closeAll = () => {
+                pop.remove();
+                document.removeEventListener("click", onDoc);
+                window.removeEventListener("resize", onMove);
+                document.removeEventListener("scroll", onMove, true);
+            };
+            setTimeout(() => {
+                document.addEventListener("click", onDoc);
+                window.addEventListener("resize", onMove);
+                document.addEventListener("scroll", onMove, true);
+            }, 0);
             const buildInto = (container, list) => {
                 for (const it of list) {
                     if (it.sep) {
@@ -181,9 +190,14 @@ class AkariDesignerApp {
                             sub.className = "menu-sub";
                             buildInto(sub, it.sub);
                             wrap.appendChild(sub);
+                            // flip the submenu leftwards when it would run off the right edge
+                            const sr = sub.getBoundingClientRect();
+                            if (sr.right > window.innerWidth - 4) sub.style.left = `calc(-100% + 4px)`;
                         };
                         const closeSub = () => { if (sub) { sub.remove(); sub = null; } };
-                        b.addEventListener("click", (ev) => { ev.stopPropagation(); sub ? closeSub() : openSub(); });
+                        // click always opens (touch taps fire mouseenter first,
+                        // a toggle would close the submenu it just opened)
+                        b.addEventListener("click", (ev) => { ev.stopPropagation(); openSub(); });
                         wrap.addEventListener("mouseenter", openSub);
                         wrap.addEventListener("mouseleave", closeSub);
                     } else {
@@ -194,7 +208,16 @@ class AkariDesignerApp {
                 }
             };
             buildInto(pop, items);
-            btn.parentElement.appendChild(pop);
+            // v1.2.1: the popup lives on <body> with fixed coordinates —
+            // inside the toolbar row it was clipped away by overflow-x: auto
+            document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect();
+            pop.style.left = Math.max(4, Math.min(r.left, window.innerWidth - pop.offsetWidth - 4)) + "px";
+            let top = r.bottom + 2;
+            if (top + pop.offsetHeight > window.innerHeight - 4) {
+                top = Math.max(4, r.top - pop.offsetHeight - 2);   // open upwards when no room below
+            }
+            pop.style.top = top + "px";
         });
     }
 
@@ -254,7 +277,7 @@ class AkariDesignerApp {
                       "\nClues are not counted by lights; putting lights is only for testing.";
             if (hidden)
                 tip += ` CAUTION: ${hidden} fainter clues showed in paler color,` +
-                       "\nwhich cannot be involved in the determination ① and ②!" +
+                       "\nwhich cannot be involved in the determination!" +
                        "\nYou can right-click to explicitly show them.";
             this.status(tip);
         } else {
@@ -936,7 +959,7 @@ Object.assign(AkariDesignerApp.prototype, {
 });
 
 // ============================================================
-// AkariDesignerApp —— Part 3: Determinations ①②③
+// AkariDesignerApp —— Part 3: Determinations ①②
 // ============================================================
 
 Object.assign(AkariDesignerApp.prototype, {
@@ -1001,6 +1024,7 @@ Object.assign(AkariDesignerApp.prototype, {
         if (!sols.length) {
             // Diagnosis: is the cause of NO SOLUTION related to clues or just to the walls
             const res0 = await runTask("count", { puzzle: p.to_dict(), use_clues: false, limit: 1 });
+            this._verified_unique = false;
             this.status("Determination ①:NO SOLUTION ✘ (Under current walls and clues)");
             const msg = res0.sols.length
                 ? "NO SOLUTION ✘:\n      There exists some feasible light positions only regarding the walls.\n      But they will all go wrong under current clues!\n      Please change some clues or walls before determinating again."
@@ -1012,10 +1036,13 @@ Object.assign(AkariDesignerApp.prototype, {
         this.backup_lights = S_;
 
         // (2) Uniqueness: consider clues and the walls
+        // (Since v1.2.1 the uniqueness result also refreshes the 「verified」
+        // flag used by the default file name — the role of the removed ②)
         let uniqMsg;
         if (aborted) {
             uniqMsg = "Uniqueness Determination: Too large scale, cannot determine!";
         } else if (sols.length >= 2) {
+            this._verified_unique = false;
             uniqMsg = "MULTIPLE SOLUTIONS for considered clues ✔✘!\nAnother solution has been showed for backup configuration.";
             const cur = new Set(p.lights);
             const same = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
@@ -1023,6 +1050,7 @@ Object.assign(AkariDesignerApp.prototype, {
             S_ = alt;
             this.backup_lights = alt;
         } else {
+            this._verified_unique = true;
             uniqMsg = "UNIQUE SOLUTION for considered clues ✔✔!";
         }
 
@@ -1042,83 +1070,13 @@ Object.assign(AkariDesignerApp.prototype, {
                        `Feasible light positions exist ✔! (${S_.size} lights in total, showed as backup configuation)\n\n${uniqMsg}\n\n${inherent}\n\n${clueNote}`);
     },
 
-    // ---------------- Determination ②: Uniqueness (NO/UNIQUE/MULTIPLE SOLUTIONS) ----------------
-    async check_unique() {
-        const p = this.puzzle;
-        const [tmp, active, hiddenN, hiddenUsed] = this._judged_puzzle();
-        let hiddenNote = "";
-        if (hiddenN)
-            hiddenNote = hiddenUsed ? ` (${hiddenN} fainter clues considered additionally)`
-                                    : ` (${hiddenN} fainter clues not considered)`;
-        const w = p.white_count();
-        if (w > 300 && !await dlgConfirm("Scale Prompt",
-                `${w} Not Wall cells currently (${active + (hiddenUsed ? hiddenN : 0)} clues considered ${hiddenNote}),` +
-                "The time complexity of Uniqueness Determination is an exponential function of the number of Not Wall cells." +
-                "The determination may last long. Continue?"))
-            return;
-        this.status(`Determinating uniqueness with ${active + (hiddenUsed ? hiddenN : 0)} clues${hiddenNote}, please wait...`);
-
-        const res = await runTask("count", { puzzle: tmp.to_dict(), use_clues: true, limit: 2 });
-        const sols = res.sols.map(sol => new Set(sol.map(([r, c]) => RC(r, c))));
-        const aborted = res.aborted;
-        if (aborted && !sols.length) {
-            this.status("Determination ②: Too large scale, cannot determine in time limit!");
-            await dlgAlert("Uniqueness Determination",
-                           "Too large searching scale, cannot determine!\nYou can downsize the board or add clues.");
-            return;
-        }
-        if (!sols.length) {
-            this._verified_unique = false;
-            this.status("Determination ②: NO SOLUTION ✘ - Cannot meet all Akari rules wherever lights are set.");
-            await dlgAlert("Uniqueness Determination",
-                           "NO SOLUTION ✘:\nCannot meet all Akari rules wherever lights are set under current walls and clues.\n");
-            return;
-        }
-        const same = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
-        if (sols.length === 1) {
-            const S_ = sols[0];
-            this._verified_unique = true;
-            let msg;
-            if (same(new Set(p.lights), S_)) {
-                msg = "UNIQUE SOLUTION ✔✔!\nCurrent light positions are just the solution!";
-            } else if (this._user_board_complete()) {
-                msg = "UNIQUE SOLUTION ✔✔!\nCurrent light positions are not the solution!\nThe solution has been showed in an independent window.";
-                this._show_backup(S_, "The UNIQUE SOLUTION");
-            } else {
-                msg = "UNIQUE SOLUTION under current clues ✔✔!\nYou can continue putting lights.";
-            }
-            this.status("Determination ②:" + msg.replace(/\n/g, " "));
-            await dlgAlert("Uniqueness Determination", msg);
-            return;
-        }
-
-        this._verified_unique = false;
-        const alt = !same(new Set(p.lights), sols[0]) ? sols[0] : sols[1];
-        this._show_backup(alt, "Another Solution");
-        this.status("Determination ②: MULTIPLE SOLUTIONS ✔✘ - Another solution must exist however lights are put.");
-        await dlgAlert("Uniqueness Determination",
-                       "MULTIPLE SOLUTIONS ✔✘!\nThere must exist another solution under current walls and clues.\n\n" +
-                       "Another solution has been showed in an independent window.\n" +
-                       "You can restore some clues, add some clues or change the walls to determine again.");
-    },
-
-    _user_board_complete() {
-        const p = this.puzzle;
-        const lit = p.lit_info();
-        for (const cell of p.white_cells()) {
-            const k = RC(...cell);
-            if (!(lit.get(k) > 0) && !p.lights.has(k)) return false;
-        }
-        return true;
-    },
-
-    // ---------------- Determination ③: Difficulty Evaluation ----------------
+    // ---------------- Determination ②: Difficulty Evaluation ----------------
     async check_difficulty() {
         this.status("Difficulty evaluating (Priority given to logical deduction)...");
         const res = await runTask("difficulty", { puzzle: this.puzzle.to_dict() });
         const d = res.result;
         if (!d.ok) {
-            this.status("Determination ③:" + d.msg);
+            this.status("Determination ②:" + d.msg);
             await dlgAlert("Difficulty Evaluation", d.msg);
             return;
         }
@@ -1144,7 +1102,7 @@ Object.assign(AkariDesignerApp.prototype, {
                    "     100~299                                            MEDIUM",
                    "     300~999                                            HARD",
                    "     ≥1000 (Or Assumption Needed)   EXPERT");
-        this.status(`Determination ③:Difficulty Coefficient ${d.score} → ${d.level}`);
+        this.status(`Determination ②:Difficulty Coefficient ${d.score} → ${d.level}`);
         await dlgAlert("Difficulty Evaluation", lines.join("\n"));
     },
 });
@@ -1155,7 +1113,7 @@ Object.assign(AkariDesignerApp.prototype, {
 
 Object.assign(AkariDesignerApp.prototype, {
 
-    // ---------------- Determination ④: Dig for Hard! ----------------
+    // ---------------- Determination ③: Dig for Hard! ----------------
     open_dig() {
         if (this.digDlg) return;             // already open
         if (this._edit_locked("Dig for Hard!")) return;

@@ -523,13 +523,18 @@ function _dig_view(puzzle, off) {
 }
 
 function dig_for_hardest(puzzle, { mode = "greedy", enum_limit = 28, logic_only = false,
-                                   check_cap = 60000, eval_cap = 2000,
+                                   check_cap = 60000, eval_cap = 2000, keep = null,
                                    on_progress = null, should_cancel = null } = {}) {
     /* Starting from the current valid clues, find the hardest deletion among
-     * those that 「keep the UNIQUE SOLUTION」. */
-    const candidates = [...puzzle.clues.keys()].filter(cell => puzzle.clue_active.get(cell) !== false);
+     * those that 「keep the UNIQUE SOLUTION」.
+     * keep: clues designated as 「must be preserved」 — never candidates,
+     * and not counted against enum_limit either. */
+    const keepSet = new Set(keep || []);
+    const candidates = [...puzzle.clues.keys()].filter(
+        cell => puzzle.clue_active.get(cell) !== false && !keepSet.has(cell));
     const k = candidates.length;
-    if (k === 0) return { ok: false, msg: "No hints to delete!" };
+    if (k === 0) return { ok: false, msg: "No hints to delete!"
+        + (keepSet.size ? " (All the valid clues are preserved.)" : "") };
 
     const state = { checks: 0, evals: 0, pruned: 0, aborted_unknown: 0 };
     const _cancelled = () => should_cancel !== null && should_cancel();
@@ -617,7 +622,7 @@ function dig_for_hardest(puzzle, { mode = "greedy", enum_limit = 28, logic_only 
                  score: d.score, level: d.level, guesses: d.guesses,
                  logical_solved: d.logical_solved,
                  checks: state.checks, evals: state.evals,
-                 pruned: 0, max_removed: best.off.size, truncated };
+                 pruned: 0, max_removed: best.off.size, kept: keepSet.size, truncated };
     }
 
     // ---------- Mode 2: Complete Enumeration (Monotonicity pruning using DFS) ----------
@@ -667,7 +672,7 @@ function dig_for_hardest(puzzle, { mode = "greedy", enum_limit = 28, logic_only 
              score: d.score, level: d.level, guesses: d.guesses,
              logical_solved: d.logical_solved,
              checks: state.checks, evals: state.evals,
-             pruned: state.pruned, max_removed: max_removed.n,
+             pruned: state.pruned, max_removed: max_removed.n, kept: keepSet.size,
              aborted_unknown: state.aborted_unknown, truncated };
 }
 

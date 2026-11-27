@@ -48,7 +48,7 @@ const FLASH_RED = "#FF8A80";      // Soft red for conflict flashing
 const FLASH_GOOD = "#C8E6C9";     // Light green for completion celebration
 const FLASH_GOLD = "#FFE082";     // Gold for completion celebration
 
-const APP_VERSION = "1.2.0_WEB";  // Web Edition, based on v1.2.0_ENG
+const APP_VERSION = "1.2.1_WEB";  // Web Edition, based on v1.2.1_EXE
 
 const SETTINGS_KEY = "akari_settings";
 
@@ -57,7 +57,7 @@ const S = {                       // Global settings (Shared by all canvases and
     hide_lit_marks: false,        // Hide 「×」 marks on lighted cells
     hide_inactive_clues: false,   // Hide clues not used as conditions (Instead of being fainter)
     red_unsatisfied: false,       // Mark unfulfilled clues in red in Test Mode
-    clue_countdown: false,        // Clues show the remaining number in Test Mode
+    clue_countdown: true,         // Clues show the remaining number in Test Mode (v1.2.1: ON by default)
     ext_library_dir: "",          // (Web) name of the External Bank folder handle
     // Recounting strategy of clues under 「Lights First」:
     //   ask  = Ask first when manually set clues would be covered (Default)

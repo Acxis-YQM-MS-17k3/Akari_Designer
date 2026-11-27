@@ -507,14 +507,29 @@ class SolveWindow {
 // ============================================================
 
 function makeZoomBar(getZoom, setZoom) {
+    // WPS-style zoom control: [− Zoom out] [slider] [+ Zoom in] [number] %
+    // (v1.2.1: the −/+ ends are labelled so the dragging direction is obvious)
     const box = document.createElement("div");
     box.className = "zoom-bar";
+    const out = document.createElement("button");
+    out.type = "button";
+    out.className = "zoom-end";
+    out.textContent = "−";
+    out.title = "Zoom out (Drag the slider to the left to shrink)";
+    out.setAttribute("aria-label", "Zoom out");
     const scale = document.createElement("input");
     scale.type = "range";
     scale.min = BoardView.ZOOM_MIN;
     scale.max = BoardView.ZOOM_MAX;
     scale.value = getZoom();
     scale.className = "zoom-scale";
+    scale.title = "Drag left to shrink, right to enlarge";
+    const inn = document.createElement("button");
+    inn.type = "button";
+    inn.className = "zoom-end";
+    inn.textContent = "+";
+    inn.title = "Zoom in (Drag the slider to the right to enlarge)";
+    inn.setAttribute("aria-label", "Zoom in");
     const num = document.createElement("input");
     num.type = "number";
     num.min = BoardView.ZOOM_MIN;
@@ -525,6 +540,12 @@ function makeZoomBar(getZoom, setZoom) {
     const pct = document.createElement("span");
     pct.textContent = "%";
     scale.addEventListener("input", () => { setZoom(+scale.value); num.value = Math.round(getZoom()); });
+    const step = (d) => {
+        const v = Math.max(BoardView.ZOOM_MIN, Math.min(BoardView.ZOOM_MAX, getZoom() + d));
+        setZoom(v); num.value = v; scale.value = v;
+    };
+    out.addEventListener("click", () => step(-25));
+    inn.addEventListener("click", () => step(25));
     const commit = () => {
         let v = parseInt(num.value);
         if (isNaN(v)) { num.value = getZoom(); return; }
@@ -535,7 +556,9 @@ function makeZoomBar(getZoom, setZoom) {
     };
     num.addEventListener("change", commit);
     box.refresh = () => { scale.value = getZoom(); num.value = getZoom(); };
+    box.appendChild(out);
     box.appendChild(scale);
+    box.appendChild(inn);
     box.appendChild(num);
     box.appendChild(pct);
     return box;
@@ -546,7 +569,7 @@ function makeZoomBar(getZoom, setZoom) {
 // ============================================================
 
 class DigDialog {
-    /* 「④ Dig for Hard!」 dialog.
+    /* 「③ Dig for Hard!」 dialog.
      * Starting from the current valid clues, search for the deletion with the
      * highest difficulty among those that 「keep the UNIQUE SOLUTION」.
      * The computation runs in a Web Worker; the main window is locked while
@@ -567,7 +590,7 @@ class DigDialog {
 
         const h = document.createElement("div");
         h.className = "dlg-title";
-        h.textContent = "④ Dig for Hard! —— Remove clues to raise the difficulty";
+        h.textContent = "③ Dig for Hard! —— Remove clues to raise the difficulty";
         box.appendChild(h);
 
         // ---------- Description ----------
@@ -626,6 +649,55 @@ class DigDialog {
         lbLogic.appendChild(document.createTextNode("Additional requirement: the dug puzzle must be 「solvable by pure logic, no assumption needed」 (Stricter acceptance standard, more conservative digging)"));
         box.appendChild(lbLogic);
 
+        // ---------- Preserved clues (Never removed in this digging) ----------
+        const fkp = document.createElement("fieldset");
+        fkp.className = "dlg-fieldset";
+        fkp.innerHTML = "<legend>Preserved Clues (Must be kept in this digging)</legend>";
+        box.appendChild(fkp);
+        const kpBar = document.createElement("div");
+        kpBar.className = "keep-bar";
+        const kpTip = document.createElement("span");
+        kpTip.className = "keep-tip";
+        kpTip.textContent = "The checked clues will NOT be removed this time, and are excluded from the enumeration count of the Complete Enumeration mode:";
+        kpBar.appendChild(kpTip);
+        const btnAll = document.createElement("button");
+        btnAll.type = "button"; btnAll.className = "dlg-btn keep-mini-btn"; btnAll.textContent = "All";
+        const btnNone = document.createElement("button");
+        btnNone.type = "button"; btnNone.className = "dlg-btn keep-mini-btn"; btnNone.textContent = "None";
+        kpBar.appendChild(btnNone);
+        kpBar.appendChild(btnAll);
+        fkp.appendChild(kpBar);
+        this.keepCount = document.createElement("div");
+        this.keepCount.className = "keep-count";
+        fkp.appendChild(this.keepCount);
+        this.keepList = document.createElement("div");
+        this.keepList.className = "keep-list";
+        fkp.appendChild(this.keepList);
+        this._keepBoxes = [];                // [{cell, box}]
+        const activeCells = [...this.app.puzzle.clues.keys()]
+            .filter(cell => this.app.puzzle.clue_active.get(cell) !== false)
+            .map(unRC).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        for (const [r, c] of activeCells) {
+            const lb = document.createElement("label");
+            lb.className = "keep-item";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.addEventListener("change", () => this._updateKeepCount());
+            lb.appendChild(cb);
+            lb.appendChild(document.createTextNode(`(${r + 1},${c + 1}) = ${this.app.puzzle.clues.get(RC(r, c))}`));
+            this.keepList.appendChild(lb);
+            this._keepBoxes.push({ cell: RC(r, c), box: cb });
+        }
+        if (!activeCells.length) {
+            const em = document.createElement("div");
+            em.className = "keep-tip";
+            em.textContent = "(No valid clues on the board)";
+            this.keepList.appendChild(em);
+        }
+        btnAll.addEventListener("click", () => { this._keepBoxes.forEach(k => k.box.checked = true); this._updateKeepCount(); });
+        btnNone.addEventListener("click", () => { this._keepBoxes.forEach(k => k.box.checked = false); this._updateKeepCount(); });
+        this._updateKeepCount();
+
         // ---------- Progress & Result ----------
         this.progress = document.createElement("progress");
         this.progress.className = "dig-progress";
@@ -666,6 +738,17 @@ class DigDialog {
 
     _set_report(t) { this.report.value = t; }
 
+    _keptCells() {
+        return this._keepBoxes.filter(k => k.box.checked).map(k => k.cell);
+    }
+
+    _updateKeepCount() {
+        const total = this._keepBoxes.length;
+        const kept = this._keptCells().length;
+        this.keepCount.textContent =
+            `${total} valid clues in total; ${kept} preserved → ${total - kept} actually involved in the digging/enumeration`;
+    }
+
     _start() {
         let limit = parseInt(this.enumLimit.value);
         if (isNaN(limit)) limit = 18;
@@ -678,13 +761,16 @@ class DigDialog {
         this.btnCancel.disabled = false;
         this.progress.style.display = "";
         this.progress.removeAttribute("value");
-        this.progText.textContent = `Started digging: ${k} valid clues, computing in the background...`;
+        const keep = this._keptCells();
+        this.progText.textContent = `Started digging: ${k} valid clues`
+            + (keep.length ? ` (${keep.length} preserved)` : "")
+            + ", computing in the background...";
         this._set_report("");
 
         const mode = document.querySelector('input[name="dig-mode"]:checked').value;
         const payload = {
             puzzle: p.to_dict(), mode, enum_limit: limit,
-            logic_only: this.logicOnly.checked,
+            logic_only: this.logicOnly.checked, keep,
         };
         const task = runTask("dig", payload, (t) => { this.progText.textContent = t; });
         this._worker = task.worker || null;
@@ -730,6 +816,8 @@ class DigDialog {
                        `  Complete enumeration statistics: ${res.checks} subsets verified, ${res.pruned} skipped by pruning; at most ${res.max_removed} clues removable while keeping the UNIQUE SOLUTION`);
         else
             lines.push("", `  Statistics: uniqueness verification × ${res.checks}, difficulty evaluation × ${res.evals}`);
+        if (res.kept)
+            lines.push(`  ${res.kept} clues designated as preserved were not involved in this digging.`);
         if (res.aborted_unknown)
             lines.push(`  CAUTION: ${res.aborted_unknown} verifications were aborted due to too large scale (Treated as unremovable).`);
         if (res.truncated)
@@ -1272,7 +1360,7 @@ class SettingsDialog {
         cbJ.addEventListener("change", () => this._applyOptions());
         this.optVars.judge_include_hidden = cbJ;
         lbJ.appendChild(cbJ);
-        lbJ.appendChild(document.createTextNode("Include fainter/hiden clues when doing determination ①/②"));
+        lbJ.appendChild(document.createTextNode("Include fainter/hiden clues when doing determination ①"));
         f2b.appendChild(lbJ);
 
         // ---- Color Scheme ----

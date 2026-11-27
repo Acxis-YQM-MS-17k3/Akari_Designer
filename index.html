@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Akari Designer v1.2.0_WEB — Design Mode (by Acxis_Official)</title>
+<title>Akari Designer v1.2.1_WEB — Design Mode (by Acxis_Official)</title>
 <meta name="description" content="Akari (Light Up) puzzle designer: design, test, verify uniqueness, evaluate difficulty and dig for hard — all in the browser.">
 <link rel="stylesheet" href="css/style.css">
 <link rel="icon" href="favicon.ico">
@@ -20,7 +20,6 @@
     <input id="inpCols" class="tb-num" type="number" min="2" max="50" value="10">
     <button id="btnRebuild" class="tb-btn lockable">(Re-)Build the Board</button>
     <span class="menu-anchor"><button id="btnAddDel" class="tb-btn lockable">Add/Del Rows/Cols ▾</button></span>
-    <span class="menu-anchor"><button id="btnFlip" class="tb-btn lockable">Flip the Board ▾</button></span>
     <span class="tb-sep"></span>
     <span class="tb-lbl">Design Approach:</span>
     <label class="tb-chk"><input type="radio" name="paradigm" value="lights" id="paraLights" checked>Lights First</label>
@@ -34,15 +33,15 @@
     <label class="tb-chk lockable"><input type="checkbox" id="symC">Centr.</label>
     <label class="tb-chk lockable"><input type="checkbox" id="symD">Diag.</label>
     <label class="tb-chk lockable"><input type="checkbox" id="symA">Anti-D.</label>
+    <span class="menu-anchor"><button id="btnFlip" class="tb-btn lockable">Flip the Board ▾</button></span>
     <span class="tb-sep"></span>
     <span id="editRow" class="tb-row-inner"></span>
   </div>
   <!-- Row 3: Determination & Digging -->
   <div class="tb-row">
     <button id="btnSolvable" class="tb-btn">① Solvab. Determ.</button>
-    <button id="btnUnique" class="tb-btn">② Unique. Determ.</button>
-    <button id="btnDifficulty" class="tb-btn">③ Diffic. Evalua.</button>
-    <button id="btnDig" class="tb-btn lockable">④ Dig for Hard!</button>
+    <button id="btnDifficulty" class="tb-btn">② Diffic. Evalua.</button>
+    <button id="btnDig" class="tb-btn lockable">③ Dig for Hard!</button>
     <button id="btnUndo" class="tb-btn lockable">↩ Undo (Ctrl+Z)</button>
     <button id="btnUndoDig" class="tb-btn lockable">↩ Undo Digging</button>
     <button id="btnClearLights" class="tb-btn lockable">Clear All Lights</button>
